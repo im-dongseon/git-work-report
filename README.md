@@ -29,11 +29,11 @@ Reports are produced on a 6-month cadence. If a report already exists for a peri
 ### Install
 
 ```bash
-# Install from GitHub
-npx skills add im-dongseon/git-work-report -g -y
+# Install from GitHub (once published)
+gh skill install im-dongseon/git-work-report git-work-report
 
 # Or install locally
-npx skills add ~/git-work-report -g -y
+gh skill install ~/dev/repo/git-work-report git-work-report --from-local
 ```
 
 ### Run
@@ -41,8 +41,8 @@ npx skills add ~/git-work-report -g -y
 In any AI agent (GitHub Copilot, Claude Code, etc.):
 
 ```
-"Generate a work report from my commits"
 "Summarize my git commits"
+"Generate a work report from my commits"
 ```
 
 Or use shorthand presets:
@@ -88,6 +88,7 @@ work-summary/
 ## Requirements
 
 - `git` CLI
+- `gh` CLI (GitHub CLI) v2.94.0+
 - An AI agent: GitHub Copilot, Claude Code, Cursor, Gemini CLI, etc.
 
 ---
@@ -96,13 +97,13 @@ work-summary/
 
 ```bash
 # From GitHub (once published)
-npx skills add im-dongseon/git-work-report -g -y
+gh skill install im-dongseon/git-work-report git-work-report
 
 # From local path
-npx skills add ~/git-work-report -g -y
+gh skill install ~/dev/repo/git-work-report git-work-report --from-local
 
 # Verify
-npx skills ls
+gh skill list | grep git-work-report
 ```
 
 ---

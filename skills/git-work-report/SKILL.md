@@ -19,15 +19,12 @@ Turn your git commit history into structured work reports — resumes, performan
 Use this skill when the user says:
 - "Summarize my git commits" / "Generate a work report from my commits"
 - "Create a resume-ready summary of my work" / "What did I work on this year?"
-- "내 커밋 히스토리를 요약해줘" / "기술 성과 요약서 만들어줘"
+- 한국어: "내 커밋 히스토리를 요약해줘" / "기술 성과 요약서 만들어줘" / "이력서에 쓸 수 있게 작업 내용 정리해줘"
 
 Or use shorthand presets:
 - `gwr` — show tip and start from Q0
-- `gwr summary` — prefills Q4=summary
-- `gwr resume` — prefills Q4=resume
-- `gwr performance` — prefills Q4=performance
-- `gwr linkedin` — prefills Q4=linkedin, Q5 default=english
-- `gwr simple` — prefills Q0=simple
+- `gwr summary` / `gwr resume` / `gwr performance` / `gwr linkedin` — prefills purpose
+- `gwr simple` — prefills Simple Mode
 
 ---
 
@@ -35,32 +32,39 @@ Or use shorthand presets:
 
 ```text
 {output_dir}/work-summary/
-├── README.md                          # TOC with repo+period links, last summary date
-├── report_summary.md                  # ★ Final report (always generated)
-├── report_resume.md                   # When purpose includes resume
-├── report_performance.md              # When purpose includes performance
-├── report_linkedin.md                 # When purpose includes linkedin
+├── README.md                          # 목차 (레포명 + 기간별 링크, 마지막 요약 날짜 기록)
+├── report_summary.md                  # ★ 기본 최종 리포트 (항상 생성)
+├── report_resume.md                   # 목적별 최종 리포트
+├── report_performance.md
+├── report_linkedin.md
 ├── {repo-a}/
-│   ├── summary_{period_key}.md            # Per-repo, per-period intermediate output
+│   ├── summary_{period_key}.md            # 중간 산출물
 │   ├── summary_{period_key}_resume.md
 │   ├── summary_{period_key}_performance.md
 │   ├── summary_{period_key}_linkedin.md
 │   └── _work/
 │       └── {period_key}/
 │           ├── v1/
-│           │   ├── config.json            # Fingerprint for reuse detection
+│           │   ├── config.json            # fingerprint (재사용 판단용)
 │           │   ├── 00_commit_list.md
 │           │   └── {hash}.json
-│           └── v2/ (when fingerprint changes)
-└── {repo-b}/...
+│           └── v2/ ...
+└── {repo-b}/ ...
 ```
 
-**`{period_key}` rules:**
-| Period | Key example |
-|--------|------------|
-| Auto-split — first half | `2026-H1` |
-| Auto-split — second half | `2025-H2` |
-| Custom range | `202510_202603` |
+**역할 분리:**
+| 파일 | 역할 |
+|------|------|
+| `{repo-name}/summary_{period_key}*.md` | 중간 산출물 (레포별, 기간별) |
+| `{repo-name}/_work/` | 커밋 단위 캐시 및 분석 근거 |
+| `report_*.md` | **최종 deliverable** (루트 하위) |
+
+**`{period_key}` 규칙:**
+| 기간 선택 | period_key 예시 |
+|---------|--------------|
+| 전체 자동 분할 — 상반기 | `2026-H1` |
+| 전체 자동 분할 — 하반기 | `2025-H2` |
+| 사용자 지정 기간 | `202510_202603` |
 
 ---
 
@@ -68,10 +72,10 @@ Or use shorthand presets:
 
 ### 🔔 Step 0. User Configuration (Ask before starting)
 
-Ask the user the following questions **in order**. Wait for all answers before beginning.
+Ask the user the following questions **in order** at skill start. Wait for all answers before beginning analysis.
 
 ```
-If triggered by bare `gwr`, output this tip before Q0:
+If triggered by bare `gwr` (without any option), output the following before Q0:
 
 💡 Tip: Use `gwr [option]` for quick access.
    gwr summary       — technical work summary
@@ -87,11 +91,13 @@ Q0. Choose your analysis mode:
 
 Q1. Where would you like to save the output?
     A 'work-summary' folder will be created inside this path.
+    Examples: ~ → ~/work-summary/ | ~/Documents → ~/Documents/work-summary/
     [Enter] (default = current directory):
 
 Q2. Enter the repository path(s) to analyze.
-    Separate multiple repos with commas. Append `:branch-name` for non-main branches.
-    [Enter] (default = current directory, main branch):
+    Separate multiple repos with commas. Append `:branch-name` for non-default branch.
+    Examples: (Enter) = current dir | ~/workspace/repo-a | ~/workspace/repo-a:release
+    [Enter] (default = current directory):
 
 Q3. Select the time period to analyze:
     1) Full history (auto-split into 6-month periods)
@@ -107,34 +113,36 @@ Q4. What is the purpose of this report? (Select multiple: 1 3 or 1,3)
     [Enter] (default = 1):
 
 Q5. Choose the output language:
-    1) Korean (default)  2) English  3) Korean + English  4) Other
+    1) Korean (default) | 2) English | 3) Korean + English (bilingual) | 4) Other
     [Enter] (default = 1):
-    (If Q4 includes LinkedIn, default is 2 — English)
+    (If Q4 included LinkedIn, default is 2 — English)
     (If 4 is selected, ask: "Please enter the language name (e.g., Japanese, French):")
 ```
 
-Build config from answers:
-```json
-{
-  "analysis_mode": "full" | "simple",
-  "output_dir": "{path}/work-summary",
-  "repos": [{ "path": "...", "branch": "main" }],
-  "period": "full" | "custom:{start}~{end}" | "incremental",
-  "purposes": ["summary", "resume", "performance", "linkedin"],
-  "language": "ko" | "en" | "both" | "{custom}"
+답변을 바탕으로 아래 config를 구성하여 이후 모든 Step에서 참조한다:
+```python
+config = {
+  analysis_mode: "full" | "simple",              // Q0
+  output_dir: "{path}/work-summary",             // Q1
+  repos: [{path, branch}],                      // Q2
+  period: "full" | "custom:{start}~{end}" | "incremental",  // Q3
+  purposes: ["summary", "resume", "performance", "linkedin"], // Q4
+  language: "ko" | "en" | "both" | "{custom}"   // Q5
 }
 ```
 
-### Step 0.5. Final Settings Confirmation
+---
 
-Summarize config and ask Y/n. On `n`, ask which number to edit (max 3 rounds).
+### Step 0.5. 최종 설정 확인
+
+Q1~Q5 답변을 모두 받은 뒤, 분석 시작 전에 설정을 요약 출력하고 Y/n 확인을 받는다.
 
 ```text
 📋 Analysis Settings Summary
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 0) Analysis mode  : Full analysis (git log + diff)
 1) Output path    : ~/Downloads/work-summary/
-2) Repositories   : repo-a (main), repo-b (release)
+2) Repositories   : repo-a (main) | repo-b (release)
 3) Period         : Full history (auto-split by 6 months)
 4) Purpose        : Technical summary, Resume
 5) Language       : Korean
@@ -143,192 +151,331 @@ Proceed with these settings? (Y/n)
 To edit a setting, enter its number (e.g., 2)
 ```
 
+- `Y` (또는 Enter) → Step 1로 진행
+- `n` → 수정할 항목 번호 입력 요청 → 해당 번호의 질문만 재질문 → 재확인 (최대 3회)
+
 ---
 
-### Step 1. Pre-check — Author & Commit Range
+### Step 1. 사전 확인 — 작성자 식별 → fingerprint 체크 → 커밋 범위 파악
 
-For each repo:
+각 레포에 대해 실행한다. **작성자를 먼저 식별한 후** fingerprint를 비교한다.
 
-1. **Fingerprint check**: If `_work/{period_key}/` exists, read latest `vN/config.json` and compare: `repo_path`, `branch`, `author_email/name`, `author_match_rule`, `period_range`, `language`, `analysis_mode`. Match → reuse existing `vN/` (skip cached hashes). Mismatch → create `vN+1/`.
-
-2. **Author detection** (priority order):
-   - `git config user.email` → `--author="{EMAIL}"`
-   - `git config user.name` → `--author="{NAME}"` fallback (warn if duplicate names exist)
-   - Neither → ask user directly
+#### 1-1. 작성자 식별
 
 ```bash
-# Check author
-AUTHOR=$(git config user.email) || AUTHOR=$(git config user.name)
-# Verify commit dates
+# 현재 git 설정 작성자 확인
+git config user.name && git config user.email
+
+# 전체 작성자 목록 확인
+git --no-pager log --pretty=format:"%an | %ae" | sort | uniq -c | sort -rn
+```
+
+**작성자 식별 규칙 (우선순위 순):**
+1. `git config user.email` → `--author="{EMAIL}"` 사용
+2. `user.email` 없고 `user.name` 있음 → `--author="{NAME}"` fallback (동명이인 위험 시 사용자 확인)
+3. 둘 다 없음 → 사용자에게 직접 입력 요청
+
+```bash
+# 본인 커밋 날짜 범위 확인
 git --no-pager log {branch} --author="$AUTHOR" --pretty=format:"%ad" --date=short | sort -u
 ```
 
-3. **Incremental mode**: Read last summary date from `work-summary/README.md`, analyze only commits after that date.
+- 반드시 `--author` 옵션으로 **본인 커밋만** 필터링
+- **점진적 업데이트 모드**: `README.md`에서 마지막 요약 날짜를 읽어 그 이후 커밋만 대상
+
+#### 1-2. `_work` fingerprint 체크 (식별된 author 기준)
+
+레포별로 `{output_dir}/{repo-name}/_work/{period_key}/`가 이미 존재하는지 확인한다. 존재하면 가장 큰 번호의 `vN/config.json`을 읽어 현재 설정과 비교한다.
+
+**비교 항목**: `repo_path`, `branch`, `author_email`(또는 `author_name`), `author_match_rule`, `period_range`, `language`, `analysis_mode`
+
+**판단 규칙:**
+1. `_work/{period_key}/`가 처음 생성 → `v1/` 생성
+2. fingerprint **일치** → 기존 `vN/` 재사용 (없는 커밋만 신규 분석, `00_commit_list.md`만 갱신)
+3. fingerprint **불일치** → 새 버전 디렉토리 생성 (예: `v2/`)
 
 ---
 
-### Step 2. Commit List + Revert Removal + Grouping (Full Mode)
+### Step 2. 커밋 목록 생성 + Revert 쌍 제거 + 그룹핑 (Full Mode)
 
-#### 2-1. Extract commit hashes (no merges)
+#### 2-1. 커밋 해시 목록 추출 (Merge 커밋 제외)
+
 ```bash
 git --no-pager log {branch} --author="$AUTHOR" --after="{START}" --before="{END}" \
   --pretty=format:"%H | %ad | %s" --date=short --no-merges
 ```
 
-#### 2-2. Auto-detect and remove revert pairs
+#### 2-2. Revert 쌍 자동 감지 및 제거
+
+Revert 커밋과 그 원본 커밋을 쌍으로 감지하여 목록에서 모두 제거한다. (Revert 후 재작성된 커밋은 유지)
+
 ```bash
 git --no-pager log {branch} --author="$AUTHOR" --grep="^Revert" \
   --pretty=format:"%H %s" --no-merges
 ```
-Remove both the revert commit and its original. Keep reverted-then-rewritten commits.
 
-#### 2-3. Group similar commits (clustering)
-Criteria (priority order): same file patterns → common keywords in messages → temporal proximity (within 3 days).
+#### 2-3. 유사 커밋 그룹핑 (클러스터링)
 
-`00_commit_list.md` format:
+같은 파일·모듈을 건드린 커밋을 사전에 그룹핑한다. 그룹핑 기준 (우선순위 순):
+1. 동일 파일명 패턴 (예: `feature_pipeline*.yaml`)
+2. 커밋 메시지의 공통 키워드
+3. 날짜 근접성 (3일 이내 연속 커밋)
+
+`00_commit_list.md` 형식:
 ```markdown
-# {YYYY}-H1 Commit List
-## [Group A] feature_pipeline
-| # | Hash | Date | Message | Status |
-|---|------|------|---------|--------|
-| A1 | dc820de | 2026-03-06 | feat: feature_pipeline added | ⬜ |
-| A2 | 7d1eddc | 2026-03-06 | fix: moving path bug fix | ⬜ |
+# {YYYY}-H1 커밋 목록
+
+## [그룹 A] feature_pipeline 구축
+| # | 해시 | 날짜 | 메시지 | 처리 |
+|---|------|------|--------|------|
+| A1 | dc820de | 2026-03-06 | feat: feature_pipeline 추가 | ⬜ |
+| A2 | 7d1eddc | 2026-03-06 | fix: moving path 버그 수정 | ⬜ |
 ```
-
-### Step 2-S. Commit List (Simple Mode)
-
-Same as Step 2 but message-based grouping only (no diff analysis). Group by `feat:`/`fix:`/`refactor:`/`chore:` prefix, then keyword, then date proximity. All status = `⬜` (no hash JSON).
 
 ---
 
-### Step 3. Per-Commit Diff Analysis → JSON (Full Mode)
+### Step 2-S. 커밋 목록 생성 (Simple Mode)
 
-Process commits in group order. Skip if `{hash}.json` already exists. Update `00_commit_list.md` status to `✅` on completion.
+> `config.analysis_mode == "simple"` 일 때만 실행.
 
-#### 3-0. Size check
 ```bash
-git --no-pager show {hash} --stat --no-patch
-git --no-pager show {hash} --patch -- '*.yaml' '*.py' '*.sql' '*.md' '*.json' \
-  ':!*.lock' ':!*.png' ':!*.jpg' ':!*.gif' | grep '^+' | grep -v '^+++' | wc -l
-```
-**Large commit**: 300+ added lines OR 10+ changed files → use 3-1B path. Otherwise use 3-1A.
-
-#### 3-1A. Normal commit — read full diff
-```bash
-git --no-pager show {hash} --patch -- '*.yaml' '*.py' '*.sql' '*.md' '*.json' \
-  ':!*.lock' ':!*.png' ':!*.jpg' ':!*.gif' | grep -v '^-' | grep -v '^@@' | grep -v '^diff' | grep -v '^index'
+git --no-pager log {branch} --author="$AUTHOR" --after="{START}" --before="{END}" \
+  --pretty=format:"%H | %ad | %s" --date=short --no-merges
 ```
 
-#### 3-1B. Large commit — staged extraction (4 steps)
-1. **Metadata**: `git show --stat`, `git show --format="%B"` for file list + commit body
-2. **Priority files**: inline docs (`doc_md:`, `description:`, `GOAL:`), SQL/HiveQL, DAG task defs, new files
-3. **High-signal patterns**: grep for `FROM|INTO|INSERT|CREATE TABLE`, `def |task_id|dag_id`, `JIRA-|#[0-9]+`, `schedule_interval|retries`
-4. **Structure JSON** from extracted signals only (no full diff read)
+**Revert 쌍 제거**: Step 2와 동일. **메시지 기반 그룹핑**: diff 없이 커밋 메시지 패턴으로만 그룹핑 (feat/fix/refactor prefix 기준 1차 분류 → 공통 키워드 → 날짜 근접성).
 
-#### 3-2. Extraction priorities
-| Priority | Item | Pattern |
-|----------|------|---------|
-| 1 | Inline docs, JIRA numbers | `doc_md:`, `description:`, `JIRA-1234` |
-| 2 | File header comments | `# GOAL:`, pipeline descriptions |
-| 3 | Table/DB names | `FROM`, `INTO`, `database_name` |
-| 4 | Tech keywords | `TEZ`, `TriggerDagRun`, `HiveQL` |
+> Simple Mode에서 `_work/{period_key}/vN/`에는 `config.json`과 `00_commit_list.md`만 저장.
 
-#### 3-3. Save analysis (lightweight JSON)
+---
+
+### Step 3. 커밋별 diff 분석 → JSON 저장 (Full Mode)
+
+그룹 순서대로 커밋을 처리한다. 이미 `{hash}.json`이 존재하면 스킵. 처리 완료 시 `00_commit_list.md` 해당 행 `처리` 컬럼을 `✅`로 업데이트.
+
+#### 3-0. 커밋 규모 판별 (일반 vs 대형)
+
+```bash
+git --no-pager show {commit_hash} --stat --no-patch
+git --no-pager show {commit_hash} --patch \
+  -- '*.yaml' '*.py' '*.sql' '*.md' '*.json' \
+  ':!*.lock' ':!*.png' ':!*.jpg' ':!*.gif' \
+  | grep '^+' | grep -v '^+++' | wc -l
+```
+
+**대형 커밋 기준**: 필터링 후 추가 줄 **300줄 이상** OR 변경 파일 **10개 이상**
+
+#### 3-1A. 일반 커밋 — diff 전체 읽기
+
+```bash
+git --no-pager show {commit_hash} --patch \
+  -- '*.yaml' '*.py' '*.sql' '*.md' '*.json' \
+  ':!*.lock' ':!*.png' ':!*.jpg' ':!*.gif' \
+  | grep -v '^-' | grep -v '^@@' | grep -v '^diff' | grep -v '^index'
+```
+
+#### 3-1B. 대형 커밋 — 단계적 추출 (4단계)
+
+**1단계: 메타데이터 수집** — 파일 목록, 변경 규모, 메시지, 커밋 본문
+```bash
+git --no-pager show {commit_hash} --stat --no-patch
+git --no-pager show {commit_hash} --format="%B" --no-patch
+```
+
+**2단계: 우선순위 파일 선별 및 상세 조회** — inline 문서 패턴(`doc_md:`, `description:`, `GOAL:`) → `.sql`/HiveQL → DAG 태스크 정의 → 신규 파일 순으로 우선
+
+**3단계: 의미 밀도 높은 패턴만 추출**
+```bash
+grep -A5 'doc_md:\|description:\|GOAL:'
+grep -E '^\+.*(FROM|INTO|INSERT|CREATE TABLE|database_name)'
+grep -E '^\+.*(def |task_id|dag_id|BashOperator|PythonOperator)'
+grep -E '^\+.*(JIRA-|#[0-9]+|[A-Z]+-[0-9]+|schedule_interval|retries)'
+```
+
+**4단계**: 추출 결과로 JSON 구조화 (전체 diff 미읽음)
+
+#### 3-2. 우선 추출 항목 (정확도 향상)
+
+| 우선순위 | 항목 | 예시 패턴 |
+|---------|------|----------|
+| 1순위 | inline 문서 패턴 (`doc_md:`, `description:`, `GOAL:`) | 비즈니스 목적 명문화 |
+| 1순위 | JIRA·이슈 번호 | `JIRA-1234`, `PROJ-123` |
+| 2순위 | 파일 상단 `#` 주석 | `GOAL:`, 파이프라인 설명 |
+| 3순위 | 테이블·DB명 | `FROM`, `INTO`, `database_name` |
+| 4순위 | 기술 키워드 | `TEZ`, `TriggerDagRun`, `HiveQL` |
+
+#### 3-3. 분석 결과 저장 (경량 JSON)
+
 ```json
 {
-  "hash": "dc820de", "date": "2026-03-06", "group": "A",
-  "category": "feat", "files": ["yamls/feature_pipeline_step1.yaml"],
+  "hash": "dc820de",
+  "date": "2026-03-06",
+  "group": "A",
+  "category": "feat",
+  "files": ["yamls/hive_query/feature/feature_pipeline_step1.yaml"],
   "representative_files": ["feature_pipeline_step1.yaml"],
   "tables": ["myproject.feature_table"],
   "tech": ["HiveQL", "TriggerDagRun", "TEZ"],
-  "business_logic": "Feature pipeline Step1 new build",
+  "business_logic": "Feature pipeline Step1 신규 구축",
   "jira": ["JIRA-1234"],
-  "scale": "new_file", "large_commit": false,
-  "summary": "feature_pipeline Step1 DAG new build"
+  "scale": "new_file",
+  "large_commit": false,
+  "summary": "feature_pipeline Step1 DAG 신규 구축"
 }
 ```
-`scale`: `new_file` | `hotfix` | `refactor` | `config_change`
+
+`scale` 값: `new_file` | `hotfix` | `refactor` | `config_change`
 
 ---
 
-### Step 4. Final Summary (Full Mode)
+### Step 4. 최종 요약서 작성 (Full Mode)
 
-Read all `_work/{period_key}/*.json`, aggregate by group, generate summary:
+`_work/{YYYY}-H1/*.json`을 모두 읽어 그룹 단위로 집계 후 요약서를 생성한다.
 
-1. **Period overview**: total commits, active period, group count, key flow
-2. **Work breakdown** (per group): commit count, representative files, tables, business logic, tech stack, "build → stabilize" narrative
-3. **Tech highlights**: new tech adoption, external system integration
-4. **Performance summary (3-5 items)**: purpose-specific format
+요약서 구성:
+1. **기간 개요**: 총 커밋 수, 활동 기간, 그룹 수, 주요 흐름
+2. **주요 작업 분류** (카테고리 × 그룹): 근거 커밋 수, 대표 파일, 테이블명·비즈니스 로직·기술 스택, "구축 → 안정화" 흐름 서술
+3. **기술적 하이라이트**: 신기술 도입, 외부 시스템 연동
+4. **성과 요약 (3~5개)**: 목적별 포맷으로 출력
 
-### Step 4-S. Message-Based Summary (Simple Mode)
-
-Same structure as Step 4 but from commit messages only. **Must include warning**: `> ⚠️ This summary is based on commit messages only (Simple Mode). Actual code changes are not reflected.`
-
----
-
-### Step 5. Purpose-Specific Report Files
-
-Generate per-repo intermediate files (`summary_{period_key}*.md`) by reformatting existing JSON/summary data. No re-reading of diffs.
-
-| Purpose | Per-repo file | Final report | JIRA? |
-|---------|--------------|-------------|-------|
-| `summary` | `summary_{period_key}.md` | `report_summary.md` | Excluded |
-| `resume` | `summary_{period_key}_resume.md` | `report_resume.md` | Excluded |
-| `performance` | `summary_{period_key}_performance.md` | `report_performance.md` | **Included** |
-| `linkedin` | `summary_{period_key}_linkedin.md` | `report_linkedin.md` | Excluded |
-
-**Format guidelines:**
-- **Summary**: Group flows + tech stack, commit counts, table names
-- **Resume**: Action-verb focused, 1-2 lines, metrics emphasis. e.g. `Designed and built Feature pipeline (HiveQL, TEZ, Airflow K8s)`
-- **Performance**: Detailed with context/background/results, JIRA numbers. e.g. `[2026.03] Feature pipeline new build (JIRA-1234): DAG development for data-driven route exploration. TEZ engine migration improved processing stability.`
-- **LinkedIn**: Present tense, action verb start, English. e.g. `Designed and built feature pipeline (HiveQL, TEZ Engine, Airflow K8s).`
+> JIRA/issue references는 performance review output에만 포함. summary/resume/LinkedIn에서는 제외.
 
 ---
 
-### Step 6. Final Report Generation (`report_*.md`)
+### Step 4-S. 커밋 메시지 기반 요약서 작성 (Simple Mode)
 
-Aggregate per-repo `summary_*.md` and `_work/*.json` into final reports. **Token economy**: JSON → summary → raw diff (never re-read diffs).
+> `config.analysis_mode == "simple"` 일 때만 실행.
 
-`report_summary.md` template:
+`00_commit_list.md`의 커밋 메시지만을 바탕으로 요약서를 작성한다. 구성은 Step 4와 동일하나, 데이터는 메시지 기반.
+
+> **출력 주의사항**: 결과물 서두에 반드시 아래 문구를 포함:
+> ```
+> > ⚠️ This summary is based on commit messages only (Simple Mode). Actual code changes are not reflected.
+> ```
+
+---
+
+### Step 5. 목적별 리포트 파일 생성
+
+`config.purposes`에 따라 레포별 중간 산출물(`summary_*.md`)을 생성한다. 기존 JSON/summary를 재가공 (diff 재분석 금지).
+
+**파일명 매핑:**
+| purposes 값 | 레포 중간 산출물 | 최종 리포트 | 생성 조건 |
+|------------|----------------|-----------|---------|
+| `summary` (기본) | `summary_{period_key}.md` | `report_summary.md` | **항상 생성** — JIRA 제외 |
+| `resume` | `summary_{period_key}_resume.md` | `report_resume.md` | purposes에 포함 시 — JIRA 제외 |
+| `performance` | `summary_{period_key}_performance.md` | `report_performance.md` | purposes에 포함 시 — **JIRA 포함** |
+| `linkedin` | `summary_{period_key}_linkedin.md` | `report_linkedin.md` | purposes에 포함 시 — JIRA 제외 |
+
+#### 기술 성과 요약 (`summary_{period_key}.md`)
+- 그룹별 작업 흐름과 기술 스택 서술, 커밋 수, 테이블명 포함 (JIRA 제외)
+
+#### 이력서용 (`summary_{period_key}_resume.md`)
+- 동사 중심, 간결 (1~2줄), 수치 강조 (JIRA 제외)
+- 예: `Feature pipeline 설계·구축 (HiveQL, TEZ, Airflow K8s)`
+
+#### 성과보고서용 (`summary_{period_key}_performance.md`)
+- 기간·배경·결과 포함 상세 서술, JIRA 번호 병기
+- 예: `[2026.03] Feature pipeline 신규 구축 (JIRA-1234): 데이터 기반 이동 경로 탐색 DAG 개발. TEZ 엔진 전환으로 처리 안정성 개선.`
+
+#### LinkedIn용 (`summary_{period_key}_linkedin.md`, 영문)
+- Present tense, action verb 시작 (JIRA 제외)
+- 예: `Designed and built feature pipeline (HiveQL, TEZ Engine, Airflow K8s).`
+
+---
+
+### Step 6. 최종 리포트 생성 (`report_*.md`)
+
+레포별 `summary_*.md`와 `_work/*.json`을 집계하여 최종 리포트를 생성한다. **토큰 절약 원칙**: JSON → summary → raw diff 순으로 우선 활용. diff 재읽기 금지.
+
+#### `report_summary.md` (항상 생성)
+
 ```markdown
 # Technical Work Report
-> Author: {author} | Date: {date} | Projects: {N} | Purpose: {purposes}
+> 분석자: {author} | 생성일: {date} | 프로젝트: {N}개 | 작성 목적: {purposes}
 
-## Key Achievements
-- {achievement 1}
-- {achievement 2}
-- {achievement 3}
+## 핵심 성과 요약
+- {전체 성과 1}
+- {전체 성과 2}
+- {전체 성과 3}
 
 ---
 
 ## Project: {repo-name}
-> Repo: {path} | Branch: {branch} | Period: {period}
+> 레포: {repo-path} | 브랜치: {branch} | 분석 기간: {period}
 
 ### {period_key}
 {summary}
+
+---
 ```
 
-**Sorting**: Repos in user input order. Periods: year descending → H2 > H1.
+**정렬 규칙:** 프로젝트(레포) 섹션 순서 = 사용자 입력 순서. 기간 섹션 = 연도 내림차순 (H2 > H1).
 
-**Multi-repo bonus** (2+ repos): Contribution table with repo, period, commits, tech stack, weight.
+**`report_summary.md` 작성 예시 (참고용):**
+```markdown
+# Technical Work Report
+> 분석자: 홍길동 | 생성일: 2026-06-17 | 프로젝트: 2개 | 작성 목적: summary
 
-### Step 7. Cleanup
+## 핵심 성과 요약
+- Feature pipeline 설계·구축 (HiveQL, TEZ, Airflow K8s): 이동 경로 탐색 DAG 3종 개발, TEZ 엔진 전환으로 처리 시간 40% 단축
+- Batch pipeline 고도화: 스케줄러 재설계로 지연율 15%→2% 개선, 모니터링 대시보드 구축
+- 레거시 ETL 마이그레이션: Hive → Spark SQL 전환, 5개 테이블 이관 완료
 
-1. Update `work-summary/README.md` TOC with last summary date (for incremental updates)
-2. Ask user whether to delete `_work/` directory
+---
+
+## Project: data-platform
+> 레포: ~/workspace/data-platform | 브랜치: main | 분석 기간: 2026-H1
+
+### 2026-H1
+**Feature Pipeline 구축 (33 commits)**
+Feature pipeline Step1~3 DAG 신규 구축. HiveQL 기반 피처 생성 로직 구현, TEZ 엔진 적용으로 쿼리 안정화. TriggerDagRun 패턴으로 파이프라인 체이닝 구성.
+
+**Batch Pipeline 고도화 (15 commits)**
+스케줄러 인터벌 재설계, 지연 알림 시스템 추가. Airflow K8s 환경에서 리소스 경합 문제 해결.
+
+**레거시 마이그레이션 (8 commits)**
+Hive → Spark SQL 전환. myproject.legacy_table 외 4개 테이블 이관 완료.
+
+---
+
+## Project: ml-service
+> 레포: ~/workspace/ml-service | 브랜치: main | 분석 기간: 2026-H1
+
+### 2026-H1
+**모델 Serving API 구축 (12 commits)**
+FastAPI 기반 추론 엔드포인트 개발, 배치 예측 파이프라인 연동. Redis 캐싱 도입으로 응답 시간 200ms → 50ms 개선.
+```
+
+**멀티레포 전용 — 레포별 기여 비중 표** (레포 2개 이상인 경우에만 추가):
+| 레포 | 기간 | 커밋 수 | 주요 기술 스택 | 비중 |
+|------|------|--------|--------------|------|
+| repo-a | 2026-H1 | 33 | HiveQL, TEZ, Airflow | 90% |
+| repo-b | 2026-H1 | 4 | Python, FastAPI | 10% |
+
+#### 목적별 리포트 (`report_resume.md` 등)
+
+purposes에 해당하는 레포별 `summary_{period_key}_{purpose}.md`를 통합하여 각 `report_{목적}.md`를 생성한다. 구조는 `report_summary.md`와 동일.
+
+---
+
+### Step 7. 마무리
+
+1. `{config.output_dir}/work-summary/README.md` 목차 업데이트 (마지막 요약 날짜 기록 — 점진적 업데이트용)
+2. `_work/` 디렉토리 삭제 여부를 사용자에게 확인 후 처리
 
 ---
 
 ## Output Format
 
-Adapt to `config.language`. Performance summary sentence formats:
+Output format adapts to `config.language`. Use the appropriate language for section headings and report content.
 
-**Korean:**
+Performance summary sentence format (Korean):
 - **[시스템명] 신규 설계 및 구축**: [기술 스택·핵심 로직] 포함, [이슈] 연계
 - **[기술명] 전환/도입**: [배경] → [개선 효과] 달성
 - **[작업명] 구현 및 운영 안정화**: [반복 수정 횟수]회 수정 끝에 안정화
 
-**English:**
+Performance summary sentence format (English):
 - **Designed and built [System Name]**: including [tech stack · core logic], linked to [issue]
 - **Introduced/migrated to [Technology]**: [background] → achieved [improvement]
 - **Implemented and stabilized [Feature]**: stabilized after [N] iterative fixes
@@ -337,9 +484,9 @@ Adapt to `config.language`. Performance summary sentence formats:
 
 ## Notes
 
-- Merge commits excluded via `--no-merges`
-- Revert pairs auto-removed in Step 2. Reverted-then-rewritten commits preserved.
-- Ambiguous messages (`bug fix`, `no message`): infer from inline docs, comments, table names
-- Large commits (300+ lines or 10+ files): use staged extraction (Step 3-1B), never truncate
-- Deleted lines (`-`) excluded from analysis to save tokens
-- `user.email` unset → fallback to `user.name`. Warn on duplicate names.
+- Merge 커밋은 `--no-merges` 옵션으로 제외
+- Revert 쌍(원본+Revert)은 Step 2에서 자동 제거. Revert 후 재작성 커밋은 유지
+- 커밋 메시지가 모호한 경우(`bug fix`, `no message`) diff의 inline 문서 패턴·주석·테이블명으로 실제 내용 파악
+- **대형 커밋**(필터 후 추가 줄 300줄 이상 OR 변경 파일 10개 이상)은 Step 3-1B 단계적 추출 적용. 임의 라인 상한으로 자르지 않음
+- 삭제 줄(`-`)은 분석에서 제외하여 토큰 절감
+- `user.email` 미설정 시 `user.name`으로 fallback. 동명이인 위험 시 사용자에게 확인 요청

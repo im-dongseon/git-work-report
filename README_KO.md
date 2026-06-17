@@ -30,10 +30,10 @@ Git 커밋 히스토리를 이력서, 성과보고서, LinkedIn 포스팅으로 
 
 ```bash
 # GitHub에서 설치 (공개 배포 후)
-npx skills add im-dongseon/git-work-report -g -y
+gh skill install im-dongseon/git-work-report git-work-report
 
 # 로컬 경로에서 설치
-npx skills add ~/git-work-report -g -y
+gh skill install ~/dev/repo/git-work-report git-work-report --from-local
 ```
 
 ### 실행
@@ -90,6 +90,7 @@ work-summary/
 ## 요구사항
 
 - `git` CLI
+- `gh` CLI (GitHub CLI) v2.94.0+
 - AI 에이전트: GitHub Copilot, Claude Code, Cursor, Gemini CLI 등
 
 ---
@@ -98,13 +99,13 @@ work-summary/
 
 ```bash
 # GitHub에서 설치 (공개 배포 후)
-npx skills add im-dongseon/git-work-report -g -y
+gh skill install im-dongseon/git-work-report git-work-report
 
 # 로컬 경로에서 설치
-npx skills add ~/git-work-report -g -y
+gh skill install ~/dev/repo/git-work-report git-work-report --from-local
 
 # 설치 확인
-npx skills ls
+gh skill list | grep git-work-report
 ```
 
 ---
