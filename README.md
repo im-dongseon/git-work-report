@@ -30,7 +30,7 @@ Reports are produced on a 6-month cadence. If a report already exists for a peri
 
 ```bash
 # Install from GitHub
-npx skills add {username}/git-work-report -g -y
+npx skills add im-dongseon/git-work-report -g -y
 
 # Or install locally
 npx skills add ~/git-work-report -g -y
@@ -96,7 +96,7 @@ work-summary/
 
 ```bash
 # From GitHub (once published)
-npx skills add {username}/git-work-report -g -y
+npx skills add im-dongseon/git-work-report -g -y
 
 # From local path
 npx skills add ~/git-work-report -g -y

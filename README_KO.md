@@ -30,7 +30,7 @@ Git 커밋 히스토리를 이력서, 성과보고서, LinkedIn 포스팅으로 
 
 ```bash
 # GitHub에서 설치 (공개 배포 후)
-npx skills add {username}/git-work-report -g -y
+npx skills add im-dongseon/git-work-report -g -y
 
 # 로컬 경로에서 설치
 npx skills add ~/git-work-report -g -y
@@ -98,7 +98,7 @@ work-summary/
 
 ```bash
 # GitHub에서 설치 (공개 배포 후)
-npx skills add {username}/git-work-report -g -y
+npx skills add im-dongseon/git-work-report -g -y
 
 # 로컬 경로에서 설치
 npx skills add ~/git-work-report -g -y
